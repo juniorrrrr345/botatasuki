@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS config (
     postal_image TEXT,
     meetup_text TEXT DEFAULT '📍 SERVICE MEET UP\n\nOrganisation de rencontres',
     meetup_image TEXT,
+    localisation_text TEXT DEFAULT '📌 SERVICE LOCALISATION\n\nTrouvez-nous facilement',
+    localisation_image TEXT,
     catalogue_url TEXT DEFAULT 'https://example.com/catalogue',
     social_buttons_per_row INTEGER DEFAULT 2,
     buttons_per_row INTEGER DEFAULT 2,
@@ -47,7 +49,7 @@ CREATE TABLE IF NOT EXISTS social_networks (
 -- Table des sous-menus des services
 CREATE TABLE IF NOT EXISTS service_submenus (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    service_type TEXT NOT NULL, -- 'livraison', 'postal', 'meetup'
+    service_type TEXT NOT NULL, -- 'livraison', 'postal', 'meetup', 'localisation'
     name TEXT NOT NULL,
     text TEXT,
     image TEXT,

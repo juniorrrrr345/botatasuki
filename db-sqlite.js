@@ -34,6 +34,8 @@ class SQLiteDatabase {
                 postal_image TEXT,
                 meetup_text TEXT DEFAULT '📍 SERVICE MEET UP\n\nOrganisation de rencontres',
                 meetup_image TEXT,
+                localisation_text TEXT DEFAULT '📌 SERVICE LOCALISATION\n\nTrouvez-nous facilement',
+                localisation_image TEXT,
                 catalogue_url TEXT,
                 social_buttons_per_row INTEGER DEFAULT 2,
                 buttons_per_row INTEGER DEFAULT 2
