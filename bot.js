@@ -219,8 +219,6 @@ bot.onText(/\/start/, async (msg) => {
     }
     
     // Services sur des lignes séparées
-    keyboard.push([{ text: '🚚 Livraison', callback_data: 'service_liv' }]);
-    keyboard.push([{ text: '📮 Postal', callback_data: 'service_pos' }]);
     keyboard.push([{ text: '📍 Meet Up', callback_data: 'service_meet' }]);
     keyboard.push([{ text: '📌 Localisation', callback_data: 'service_loc' }]);
     
@@ -357,8 +355,6 @@ bot.on('callback_query', async (query) => {
             }
             
             // Services sur des lignes séparées
-            keyboard.push([{ text: '🚚 Livraison', callback_data: 'service_liv' }]);
-            keyboard.push([{ text: '📮 Postal', callback_data: 'service_pos' }]);
             keyboard.push([{ text: '📍 Meet Up', callback_data: 'service_meet' }]);
             keyboard.push([{ text: '📌 Localisation', callback_data: 'service_loc' }]);
             
@@ -388,14 +384,6 @@ bot.on('callback_query', async (query) => {
             
             
         // Services
-        case 'service_liv':
-            await showService(chatId, userId, 'livraison', messageId);
-            break;
-            
-        case 'service_pos':
-            await showService(chatId, userId, 'postal', messageId);
-            break;
-            
         case 'service_meet':
             await showService(chatId, userId, 'meetup', messageId);
             break;
@@ -473,8 +461,6 @@ bot.on('callback_query', async (query) => {
                     '🚚 <b>Gérer les Services</b>\n\n' +
                     'Sélectionnez un service à configurer:',
                     [
-                        [{ text: '🚚 LIVRAISON', callback_data: 'edit_service_liv' }],
-                        [{ text: '📮 POSTAL', callback_data: 'edit_service_pos' }],
                         [{ text: '📍 MEET UP', callback_data: 'edit_service_meet' }],
                         [{ text: '📌 LOCALISATION', callback_data: 'edit_service_loc' }],
                         [{ text: '🔙 Retour', callback_data: 'admin_back' }]
@@ -524,8 +510,6 @@ bot.on('callback_query', async (query) => {
             break;
             
         // Gestion des services détaillés
-        case 'edit_service_liv':
-        case 'edit_service_pos':
         case 'edit_service_meet':
         case 'edit_service_loc':
             if (await isAdmin(userId)) {
@@ -598,13 +582,9 @@ async function showService(chatId, userId, serviceType, messageId) {
 
 // Afficher le menu d'édition d'un service
 async function showServiceEditMenu(chatId, userId, serviceType, messageId) {
-    const serviceName = serviceType === 'liv' ? 'LIVRAISON' : 
-                       serviceType === 'pos' ? 'POSTAL' : 
-                       serviceType === 'meet' ? 'MEET UP' : 'LOCALISATION';
+    const serviceName = serviceType === 'meet' ? 'MEET UP' : 'LOCALISATION';
                        
-    const fullServiceType = serviceType === 'liv' ? 'livraison' : 
-                           serviceType === 'pos' ? 'postal' : 
-                           serviceType === 'meet' ? 'meetup' : 'localisation';
+    const fullServiceType = serviceType === 'meet' ? 'meetup' : 'localisation';
     
     // Pour Localisation, utiliser "Vidéo" au lieu de "Photo"
     const mediaLabel = serviceType === 'loc' ? '🎥 Vidéo principale' : '🖼️ Photo principale';
@@ -827,9 +807,7 @@ async function handleOtherCallbacks(query) {
         }
         
         // Créer le sous-menu sans photo
-        const fullServiceType = state.serviceType === 'liv' ? 'livraison' : 
-                               state.serviceType === 'pos' ? 'postal' : 
-                               state.serviceType === 'meet' ? 'meetup' : 'localisation';
+        const fullServiceType = state.serviceType === 'meet' ? 'meetup' : 'localisation';
         
         await db.addSubmenu(fullServiceType, state.submenuName, state.submenuText, null);
         
@@ -1102,9 +1080,7 @@ bot.on('message', async (msg) => {
     // Gestion des textes des services
     else if (state.state.startsWith('waiting_service_text_')) {
         const serviceType = state.state.replace('waiting_service_text_', '');
-        const field = serviceType === 'liv' ? 'livraison_text' :
-                     serviceType === 'pos' ? 'postal_text' : 
-                     serviceType === 'meet' ? 'meetup_text' : 'localisation_text';
+        const field = serviceType === 'meet' ? 'meetup_text' : 'localisation_text';
         
         // Convertir les entités Telegram en HTML
         const formattedText = parseMessageEntities(msg.text, msg.entities);
@@ -1382,9 +1358,7 @@ bot.on('photo', async (msg) => {
     // Photos des services
     else if (state.state.startsWith('waiting_service_photo_')) {
         const serviceType = state.state.replace('waiting_service_photo_', '');
-        const field = serviceType === 'liv' ? 'livraison_image' :
-                     serviceType === 'pos' ? 'postal_image' : 
-                     serviceType === 'meet' ? 'meetup_image' : 'localisation_image';
+        const field = serviceType === 'meet' ? 'meetup_image' : 'localisation_image';
         
         await db.updateConfig({ [field]: photo });
         delete state.state;
@@ -1415,9 +1389,7 @@ bot.on('photo', async (msg) => {
     
     // Photo d'un sous-menu (création)
     else if (state.state === 'adding_submenu_photo') {
-        const fullServiceType = state.serviceType === 'liv' ? 'livraison' : 
-                               state.serviceType === 'pos' ? 'postal' : 
-                               state.serviceType === 'meet' ? 'meetup' : 'localisation';
+        const fullServiceType = state.serviceType === 'meet' ? 'meetup' : 'localisation';
         
         await db.addSubmenu(fullServiceType, state.submenuName, state.submenuText, photo);
         delete state.state;
@@ -1500,9 +1472,7 @@ bot.on('video', async (msg) => {
 
 // Gestion des sous-menus
 async function showSubmenuManagement(chatId, userId, serviceType, messageId) {
-    const fullServiceType = serviceType === 'liv' ? 'livraison' : 
-                           serviceType === 'pos' ? 'postal' : 
-                           serviceType === 'meet' ? 'meetup' : 'localisation';
+    const fullServiceType = serviceType === 'meet' ? 'meetup' : 'localisation';
     const submenus = await db.getServiceSubmenus(fullServiceType);
     
     const keyboard = [];
