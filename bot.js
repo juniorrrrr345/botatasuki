@@ -150,6 +150,42 @@ async function sendOrEditPhoto(chatId, photo, caption, keyboard = null, messageI
     return await bot.sendPhoto(chatId, photo, options);
 }
 
+// Fonction pour envoyer une vidéo (gère automatiquement les transitions texte/vidéo)
+async function sendOrEditVideo(chatId, video, caption, keyboard = null, messageId = null) {
+    const options = {
+        caption: caption,
+        parse_mode: 'HTML',
+        reply_markup: keyboard ? { inline_keyboard: keyboard } : undefined
+    };
+
+    if (messageId) {
+        try {
+            // Essayer d'éditer avec une nouvelle vidéo
+            const result = await bot.editMessageMedia({
+                type: 'video',
+                media: video,
+                caption: caption,
+                parse_mode: 'HTML'
+            }, {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: keyboard ? { inline_keyboard: keyboard } : undefined
+            });
+            // S'assurer qu'on retourne toujours un objet avec message_id
+            return result && result.message_id ? result : { message_id: messageId };
+        } catch (error) {
+            // Si l'édition échoue (probablement passage texte->vidéo), supprimer et recréer
+            try {
+                await bot.deleteMessage(chatId, messageId);
+            } catch (deleteError) {
+                // Ignorer si la suppression échoue
+            }
+        }
+    }
+
+    return await bot.sendVideo(chatId, video, options);
+}
+
 // Commande /start
 bot.onText(/\/start/, async (msg) => {
     const chatId = msg.chat.id;
@@ -546,7 +582,12 @@ async function showService(chatId, userId, serviceType, messageId) {
     
     let result;
     if (image) {
-        result = await sendOrEditPhoto(chatId, image, text, keyboard, messageId);
+        // Pour Localisation, utiliser sendOrEditVideo au lieu de sendOrEditPhoto
+        if (serviceType === 'localisation') {
+            result = await sendOrEditVideo(chatId, image, text, keyboard, messageId);
+        } else {
+            result = await sendOrEditPhoto(chatId, image, text, keyboard, messageId);
+        }
     } else {
         result = await sendOrEditMessage(chatId, text, keyboard, 'HTML', messageId);
     }
@@ -565,12 +606,15 @@ async function showServiceEditMenu(chatId, userId, serviceType, messageId) {
                            serviceType === 'pos' ? 'postal' : 
                            serviceType === 'meet' ? 'meetup' : 'localisation';
     
+    // Pour Localisation, utiliser "Vidéo" au lieu de "Photo"
+    const mediaLabel = serviceType === 'loc' ? '🎥 Vidéo principale' : '🖼️ Photo principale';
+    
     await sendOrEditMessage(
         chatId,
         `✏️ <b>SERVICE ${serviceName}</b>\n\nQue voulez-vous modifier ?`,
         [
             [{ text: '📝 Texte principal', callback_data: `edit_text_${serviceType}` }],
-            [{ text: '🖼️ Photo principale', callback_data: `edit_photo_${serviceType}` }],
+            [{ text: mediaLabel, callback_data: `edit_photo_${serviceType}` }],
             [{ text: '📋 Gérer sous-menus', callback_data: `manage_submenus_${serviceType}` }],
             [{ text: '🔙 Retour', callback_data: 'admin_services' }]
         ],
@@ -665,9 +709,15 @@ async function handleOtherCallbacks(query) {
     else if (data.startsWith('edit_photo_')) {
         const serviceType = data.replace('edit_photo_', '');
         userStates.set(userId, { ...state, state: `waiting_service_photo_${serviceType}` });
+        
+        // Message différent pour Localisation (vidéo) vs autres services (photo)
+        const message = serviceType === 'loc' 
+            ? '🎥 Envoyez la nouvelle vidéo pour ce service:'
+            : '🖼️ Envoyez la nouvelle photo pour ce service:';
+        
         await sendOrEditMessage(
             chatId,
-            '🖼️ Envoyez la nouvelle photo pour ce service:',
+            message,
             [[{ text: '❌ Annuler', callback_data: `edit_service_${serviceType}` }]],
             'HTML',
             messageId
@@ -746,10 +796,17 @@ async function handleOtherCallbacks(query) {
         }
         
         userStates.set(userId, { ...state, state: 'adding_submenu_photo' });
+        
+        // Message différent pour Localisation (vidéo) vs autres services (photo)
+        const mediaMessage = state.serviceType === 'loc'
+            ? '🎥 <b>Envoyez la vidéo pour ce sous-menu</b>\n\n' +
+              '<i>Cette vidéo s\'affichera quand l\'utilisateur cliquera sur le sous-menu</i>'
+            : '📷 <b>Envoyez la photo pour ce sous-menu</b>\n\n' +
+              '<i>Cette photo s\'affichera quand l\'utilisateur cliquera sur le sous-menu</i>';
+        
         await sendOrEditMessage(
             chatId,
-            '📷 <b>Envoyez la photo pour ce sous-menu</b>\n\n' +
-            '<i>Cette photo s\'affichera quand l\'utilisateur cliquera sur le sous-menu</i>',
+            mediaMessage,
             [[{ text: '❌ Annuler', callback_data: `manage_submenus_${state.serviceType}` }]],
             'HTML',
             messageId
@@ -972,9 +1029,15 @@ async function handleOtherCallbacks(query) {
         const prefix = 'edit_submenu_photo_';
         const serviceType = data.substring(prefix.length, lastUnderscoreIndex);
         userStates.set(userId, { ...state, state: 'editing_submenu_photo', submenuId, serviceType });
+        
+        // Message différent pour Localisation (vidéo) vs autres services (photo)
+        const mediaMessage = serviceType === 'loc'
+            ? '🎥 Envoyez la nouvelle vidéo du sous-menu:'
+            : '🖼️ Envoyez la nouvelle photo du sous-menu:';
+        
         await sendOrEditMessage(
             chatId,
-            '🖼️ Envoyez la nouvelle photo du sous-menu:',
+            mediaMessage,
             [[{ text: '❌ Annuler', callback_data: `edit_submenu_${serviceType}_${submenuId}` }]],
             'HTML',
             messageId
@@ -1152,14 +1215,27 @@ bot.on('message', async (msg) => {
         delete state.state;
         userStates.set(userId, state);
         
-        // Demander si l'utilisateur veut ajouter une photo
+        // Message différent pour Localisation (vidéo) vs autres services (photo)
+        const mediaQuestion = state.serviceType === 'loc'
+            ? '🎥 <b>Voulez-vous ajouter une vidéo à ce sous-menu ?</b>\n\n' +
+              '<i>La vidéo s\'affichera avec le texte du sous-menu</i>'
+            : '🖼️ <b>Voulez-vous ajouter une photo à ce sous-menu ?</b>\n\n' +
+              '<i>La photo s\'affichera avec le texte du sous-menu</i>';
+        
+        const mediaButton = state.serviceType === 'loc'
+            ? '🎥 Oui, ajouter une vidéo'
+            : '📷 Oui, ajouter une photo';
+        
+        const noMediaButton = state.serviceType === 'loc'
+            ? '❌ Non, pas de vidéo'
+            : '❌ Non, pas de photo';
+        
         await sendOrEditMessage(
             chatId,
-            '🖼️ <b>Voulez-vous ajouter une photo à ce sous-menu ?</b>\n\n' +
-            '<i>La photo s\'affichera avec le texte du sous-menu</i>',
+            mediaQuestion,
             [
-                [{ text: '📷 Oui, ajouter une photo', callback_data: 'add_submenu_photo_yes' }],
-                [{ text: '❌ Non, pas de photo', callback_data: 'add_submenu_photo_no' }]
+                [{ text: mediaButton, callback_data: 'add_submenu_photo_yes' }],
+                [{ text: noMediaButton, callback_data: 'add_submenu_photo_no' }]
             ],
             'HTML',
             state.messageId
@@ -1362,6 +1438,66 @@ bot.on('photo', async (msg) => {
     }
 });
 
+// Gestion des vidéos (pour Localisation)
+bot.on('video', async (msg) => {
+    const chatId = msg.chat.id;
+    const userId = msg.from.id;
+    const state = userStates.get(userId) || {};
+    
+    if (!state.state) return;
+    
+    const video = msg.video.file_id;
+    
+    // Vidéo du service Localisation
+    if (state.state === 'waiting_service_photo_loc') {
+        await db.updateConfig({ localisation_image: video });
+        delete state.state;
+        await sendOrEditMessage(
+            chatId,
+            '✅ Vidéo du service mise à jour !',
+            [[{ text: '🔙 Retour', callback_data: 'edit_service_loc' }]],
+            'HTML',
+            state.messageId
+        );
+    }
+    
+    // Vidéo d'un sous-menu du service Localisation (modification)
+    else if (state.state === 'editing_submenu_photo' && state.serviceType === 'loc') {
+        await db.updateSubmenu(state.submenuId, { image: video });
+        delete state.state;
+        delete state.submenuId;
+        delete state.serviceType;
+        
+        await sendOrEditMessage(
+            chatId,
+            '✅ Vidéo du sous-menu mise à jour !',
+            [[{ text: '🔙 Retour', callback_data: 'admin_services' }]],
+            'HTML',
+            state.messageId
+        );
+    }
+    
+    // Vidéo d'un sous-menu du service Localisation (création)
+    else if (state.state === 'adding_submenu_photo' && state.serviceType === 'loc') {
+        await db.addSubmenu('localisation', state.submenuName, state.submenuText, video);
+        delete state.state;
+        delete state.submenuName;
+        delete state.submenuText;
+        delete state.serviceType;
+        
+        await sendOrEditMessage(
+            chatId,
+            '✅ Sous-menu ajouté avec vidéo !',
+            [[{ text: '🔙 Retour', callback_data: 'admin_services' }]],
+            'HTML',
+            state.messageId
+        );
+        
+        // Nettoyer l'état
+        userStates.set(userId, { messageId: state.messageId });
+    }
+});
+
 // Gestion des sous-menus
 async function showSubmenuManagement(chatId, userId, serviceType, messageId) {
     const fullServiceType = serviceType === 'liv' ? 'livraison' : 
@@ -1431,7 +1567,12 @@ async function showSubmenuContent(chatId, userId, submenuId, messageId) {
     
     let result;
     if (submenu.image) {
-        result = await sendOrEditPhoto(chatId, submenu.image, submenu.text || submenu.name, keyboard, messageId);
+        // Pour les sous-menus de Localisation, utiliser sendOrEditVideo
+        if (submenu.service_type === 'localisation') {
+            result = await sendOrEditVideo(chatId, submenu.image, submenu.text || submenu.name, keyboard, messageId);
+        } else {
+            result = await sendOrEditPhoto(chatId, submenu.image, submenu.text || submenu.name, keyboard, messageId);
+        }
     } else {
         result = await sendOrEditMessage(chatId, submenu.text || submenu.name, keyboard, 'HTML', messageId);
     }
