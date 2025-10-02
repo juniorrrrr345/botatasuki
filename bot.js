@@ -219,8 +219,6 @@ bot.onText(/\/start/, async (msg) => {
     }
     
     // Services sur des lignes séparées
-    keyboard.push([{ text: '📍 Meet Up', callback_data: 'service_meet' }]);
-    keyboard.push([{ text: '📌 Localisation', callback_data: 'service_loc' }]);
     
     // Réseaux sociaux (un par ligne)
     const socialNetworks = await db.getSocialNetworks();
@@ -355,8 +353,6 @@ bot.on('callback_query', async (query) => {
             }
             
             // Services sur des lignes séparées
-            keyboard.push([{ text: '📍 Meet Up', callback_data: 'service_meet' }]);
-            keyboard.push([{ text: '📌 Localisation', callback_data: 'service_loc' }]);
             
             // Réseaux sociaux (un par ligne)
             const socialNetworks = await db.getSocialNetworks();
@@ -384,13 +380,6 @@ bot.on('callback_query', async (query) => {
             
             
         // Services
-        case 'service_meet':
-            await showService(chatId, userId, 'meetup', messageId);
-            break;
-            
-        case 'service_loc':
-            await showService(chatId, userId, 'localisation', messageId);
-            break;
             
         // Admin
         case 'admin_back':
@@ -461,8 +450,6 @@ bot.on('callback_query', async (query) => {
                     '🚚 <b>Gérer les Services</b>\n\n' +
                     'Sélectionnez un service à configurer:',
                     [
-                        [{ text: '📍 MEET UP', callback_data: 'edit_service_meet' }],
-                        [{ text: '📌 LOCALISATION', callback_data: 'edit_service_loc' }],
                         [{ text: '🔙 Retour', callback_data: 'admin_back' }]
                     ],
                     'HTML',
@@ -510,13 +497,6 @@ bot.on('callback_query', async (query) => {
             break;
             
         // Gestion des services détaillés
-        case 'edit_service_meet':
-        case 'edit_service_loc':
-            if (await isAdmin(userId)) {
-                const serviceType = data.replace('edit_service_', '');
-                await showServiceEditMenu(chatId, userId, serviceType, messageId);
-            }
-            break;
             
         // Autres callbacks
         default:
@@ -539,14 +519,6 @@ async function showService(chatId, userId, serviceType, messageId) {
         case 'postal':
             text = config.postal_text;
             image = config.postal_image;
-            break;
-        case 'meetup':
-            text = config.meetup_text;
-            image = config.meetup_image;
-            break;
-        case 'localisation':
-            text = config.localisation_text;
-            image = config.localisation_image;
             break;
     }
     
@@ -1427,7 +1399,7 @@ bot.on('video', async (msg) => {
         await sendOrEditMessage(
             chatId,
             '✅ Vidéo du service mise à jour !',
-            [[{ text: '🔙 Retour', callback_data: 'edit_service_loc' }]],
+            [[{ text: '🔙 Retour', callback_data: 'admin_back' }]],
             'HTML',
             state.messageId
         );
