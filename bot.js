@@ -538,12 +538,7 @@ async function showService(chatId, userId, serviceType, messageId) {
     
     let result;
     if (image) {
-        // Pour Localisation, utiliser sendOrEditVideo au lieu de sendOrEditPhoto
-        if (serviceType === 'localisation') {
-            result = await sendOrEditVideo(chatId, image, text, keyboard, messageId);
-        } else {
-            result = await sendOrEditPhoto(chatId, image, text, keyboard, messageId);
-        }
+        result = await sendOrEditPhoto(chatId, image, text, keyboard, messageId);
     } else {
         result = await sendOrEditMessage(chatId, text, keyboard, 'HTML', messageId);
     }
@@ -554,12 +549,9 @@ async function showService(chatId, userId, serviceType, messageId) {
 
 // Afficher le menu d'édition d'un service
 async function showServiceEditMenu(chatId, userId, serviceType, messageId) {
-    const serviceName = serviceType === 'meet' ? 'MEET UP' : 'LOCALISATION';
-                       
-    const fullServiceType = serviceType === 'meet' ? 'meetup' : 'localisation';
-    
-    // Pour Localisation, utiliser "Vidéo" au lieu de "Photo"
-    const mediaLabel = serviceType === 'loc' ? '🎥 Vidéo principale' : '🖼️ Photo principale';
+    const serviceName = 'SERVICE';
+    const fullServiceType = serviceType;
+    const mediaLabel = '🖼️ Photo principale';
     
     await sendOrEditMessage(
         chatId,
@@ -779,7 +771,7 @@ async function handleOtherCallbacks(query) {
         }
         
         // Créer le sous-menu sans photo
-        const fullServiceType = state.serviceType === 'meet' ? 'meetup' : 'localisation';
+        const fullServiceType = state.serviceType;
         
         await db.addSubmenu(fullServiceType, state.submenuName, state.submenuText, null);
         
@@ -1052,7 +1044,7 @@ bot.on('message', async (msg) => {
     // Gestion des textes des services
     else if (state.state.startsWith('waiting_service_text_')) {
         const serviceType = state.state.replace('waiting_service_text_', '');
-        const field = serviceType === 'meet' ? 'meetup_text' : 'localisation_text';
+        const field = serviceType + '_text';
         
         // Convertir les entités Telegram en HTML
         const formattedText = parseMessageEntities(msg.text, msg.entities);
@@ -1330,7 +1322,7 @@ bot.on('photo', async (msg) => {
     // Photos des services
     else if (state.state.startsWith('waiting_service_photo_')) {
         const serviceType = state.state.replace('waiting_service_photo_', '');
-        const field = serviceType === 'meet' ? 'meetup_image' : 'localisation_image';
+        const field = serviceType + '_image';
         
         await db.updateConfig({ [field]: photo });
         delete state.state;
@@ -1361,7 +1353,7 @@ bot.on('photo', async (msg) => {
     
     // Photo d'un sous-menu (création)
     else if (state.state === 'adding_submenu_photo') {
-        const fullServiceType = state.serviceType === 'meet' ? 'meetup' : 'localisation';
+        const fullServiceType = state.serviceType;
         
         await db.addSubmenu(fullServiceType, state.submenuName, state.submenuText, photo);
         delete state.state;
@@ -1392,59 +1384,11 @@ bot.on('video', async (msg) => {
     
     const video = msg.video.file_id;
     
-    // Vidéo du service Localisation
-    if (state.state === 'waiting_service_photo_loc') {
-        await db.updateConfig({ localisation_image: video });
-        delete state.state;
-        await sendOrEditMessage(
-            chatId,
-            '✅ Vidéo du service mise à jour !',
-            [[{ text: '🔙 Retour', callback_data: 'admin_back' }]],
-            'HTML',
-            state.messageId
-        );
-    }
-    
-    // Vidéo d'un sous-menu du service Localisation (modification)
-    else if (state.state === 'editing_submenu_photo' && state.serviceType === 'loc') {
-        await db.updateSubmenu(state.submenuId, { image: video });
-        delete state.state;
-        delete state.submenuId;
-        delete state.serviceType;
-        
-        await sendOrEditMessage(
-            chatId,
-            '✅ Vidéo du sous-menu mise à jour !',
-            [[{ text: '🔙 Retour', callback_data: 'admin_services' }]],
-            'HTML',
-            state.messageId
-        );
-    }
-    
-    // Vidéo d'un sous-menu du service Localisation (création)
-    else if (state.state === 'adding_submenu_photo' && state.serviceType === 'loc') {
-        await db.addSubmenu('localisation', state.submenuName, state.submenuText, video);
-        delete state.state;
-        delete state.submenuName;
-        delete state.submenuText;
-        delete state.serviceType;
-        
-        await sendOrEditMessage(
-            chatId,
-            '✅ Sous-menu ajouté avec vidéo !',
-            [[{ text: '🔙 Retour', callback_data: 'admin_services' }]],
-            'HTML',
-            state.messageId
-        );
-        
-        // Nettoyer l'état
-        userStates.set(userId, { messageId: state.messageId });
-    }
 });
 
 // Gestion des sous-menus
 async function showSubmenuManagement(chatId, userId, serviceType, messageId) {
-    const fullServiceType = serviceType === 'meet' ? 'meetup' : 'localisation';
+    const fullServiceType = serviceType;
     const submenus = await db.getServiceSubmenus(fullServiceType);
     
     const keyboard = [];
@@ -1494,12 +1438,6 @@ async function showSubmenuContent(chatId, userId, submenuId, messageId) {
         case 'postal':
             serviceCallback = 'service_pos';
             break;
-        case 'meetup':
-            serviceCallback = 'service_meet';
-            break;
-        case 'localisation':
-            serviceCallback = 'service_loc';
-            break;
         default:
             serviceCallback = 'back_to_start';
     }
@@ -1509,12 +1447,7 @@ async function showSubmenuContent(chatId, userId, submenuId, messageId) {
     
     let result;
     if (submenu.image) {
-        // Pour les sous-menus de Localisation, utiliser sendOrEditVideo
-        if (submenu.service_type === 'localisation') {
-            result = await sendOrEditVideo(chatId, submenu.image, submenu.text || submenu.name, keyboard, messageId);
-        } else {
-            result = await sendOrEditPhoto(chatId, submenu.image, submenu.text || submenu.name, keyboard, messageId);
-        }
+        result = await sendOrEditPhoto(chatId, submenu.image, submenu.text || submenu.name, keyboard, messageId);
     } else {
         result = await sendOrEditMessage(chatId, submenu.text || submenu.name, keyboard, 'HTML', messageId);
     }
